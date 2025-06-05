@@ -1,7 +1,9 @@
+#include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <OneWire.h>
 #include <DallasTemperature.h> 
+#include <TinyGPS++.h>  
 
 //*********************
 //***   GLOBALES     **
@@ -11,6 +13,12 @@
 #define TOPICO_PUB2 "test/temp2"  //tópico para temperatura que se publica en el Broker
 #define TOPICO_SUB1 "test/led1"   //tópico al que se subscribe
 #define TOPICO_SUB2 "test/led2"   //tópico al que se subscribe
+
+// Define the RX and TX pins for Serial 2
+#define RXD2 16
+#define TXD2 17
+
+#define GPS_BAUD 9600
 
 #define led1 22
 #define led2 23
@@ -26,6 +34,13 @@ const int interval = 500;
 bool buzzState = false;
 WiFiClient espClient;           //se declara el objeto espClient de la clase WiFiClient
 PubSubClient client(espClient); //se declara el objeto client de la clase PubSubClient
+TinyGPSPlus gps;
+
+// GPS
+
+// Create an instance of the HardwareSerial class for Serial 2
+HardwareSerial gpsSerial(2);
+
 
 //***********************
 //***   WIFI CONFIG    **
@@ -52,6 +67,7 @@ void initMQTT();
 void reconectWiFi(); 
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 void VerificaConexWiFiyMQTT();
+void EnviaGPSMQTT();
 
 void InitOutput() {
   pinMode(led1, OUTPUT);
@@ -64,6 +80,11 @@ void InitOutput() {
 
 void initSerial() {
   Serial.begin(115200);
+
+  // Start Serial 2 with the defined RX and TX pins and a baud rate of 9600
+  gpsSerial.begin(GPS_BAUD, SERIAL_8N1, RXD2, TXD2);
+  Serial.println("Serial 2 started at 9600 baud rate");
+
   delay(100);
 }
 
@@ -198,6 +219,27 @@ void EnviaTempMQTT() {
   }
 }
 
+void EnviaGPSMQTT() {
+  while (gpsSerial.available() > 0) {
+        char gpsData = gpsSerial.read();
+        gps.encode(gpsData); // Procesar datos con TinyGPS++
+    }
+
+    // Imprimir datos si son válidos
+    if (gps.location.isValid()) {
+        Serial.print("Latitud: "); Serial.println(gps.location.lat(), 6);
+        Serial.print("Longitud: "); Serial.println(gps.location.lng(), 6);
+    } else {
+        Serial.println("Esperando señal GPS...");
+    }
+
+    Serial.print("Satélites: ");
+    Serial.println(gps.satellites.value());
+
+    delay(1000);
+    Serial.println("-------------------------------");
+}
+
 void setup() {
   initSerial();
   InitOutput();
@@ -208,5 +250,6 @@ void setup() {
 void loop() {
   VerificaConexWiFiyMQTT();
   EnviaTempMQTT();
+  EnviaGPSMQTT();
   client.loop();
 }
