@@ -13,6 +13,8 @@
 #define TOPICO_PUB2 "test/temp2"  //tópico para temperatura que se publica en el Broker
 #define TOPICO_SUB1 "test/led1"   //tópico al que se subscribe
 #define TOPICO_SUB2 "test/led2"   //tópico al que se subscribe
+#define TOPICO_GPS_LAT "test/gps/lat"
+#define TOPICO_GPS_LNG "test/gps/lng"
 
 // Define the RX and TX pins for Serial 2
 #define RXD2 16
@@ -221,23 +223,34 @@ void EnviaTempMQTT() {
 
 void EnviaGPSMQTT() {
   while (gpsSerial.available() > 0) {
-        char gpsData = gpsSerial.read();
-        gps.encode(gpsData); // Procesar datos con TinyGPS++
-    }
+    char gpsData = gpsSerial.read();
+    gps.encode(gpsData);
+  }
 
-    // Imprimir datos si son válidos
-    if (gps.location.isValid()) {
-        Serial.print("Latitud: "); Serial.println(gps.location.lat(), 6);
-        Serial.print("Longitud: "); Serial.println(gps.location.lng(), 6);
-    } else {
-        Serial.println("Esperando señal GPS...");
-    }
+  if (gps.location.isValid()) {
+    double latitud = gps.location.lat();
+    double longitud = gps.location.lng();
 
-    Serial.print("Satélites: ");
-    Serial.println(gps.satellites.value());
+    Serial.print("Latitud: "); Serial.println(latitud, 6);
+    Serial.print("Longitud: "); Serial.println(longitud, 6);
 
-    delay(1000);
-    Serial.println("-------------------------------");
+    // Convertir a string
+    char latString[15];
+    char lngString[15];
+    dtostrf(latitud, 11, 6, latString);
+    dtostrf(longitud, 11, 6, lngString);
+
+    // Publicar por MQTT
+    client.publish(TOPICO_GPS_LAT, latString);
+    client.publish(TOPICO_GPS_LNG, lngString);
+  } else {
+    Serial.println("Esperando señal GPS...");
+  }
+
+  Serial.print("Satélites: ");
+  Serial.println(gps.satellites.value());
+
+  Serial.println("-------------------------------");
 }
 
 void setup() {
